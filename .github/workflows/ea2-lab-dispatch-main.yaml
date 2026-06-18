@@ -11,10 +11,6 @@ on:
         description: 'Tipo EC2'
         required: true
         default: 't3.small'
-      ssh_cidr:
-        description: 'CIDR origen SSH'
-        required: true
-        default: '0.0.0.0/0'
       k8s_stack:
         description: 'k3s - minikube - none'
         required: true
@@ -31,7 +27,6 @@ jobs:
     with:
       aws_region: ${{ inputs.aws_region }}
       instance_type: ${{ inputs.instance_type }}
-      ssh_cidr: ${{ inputs.ssh_cidr }}
       k8s_stack: ${{ inputs.k8s_stack }}
       provision_dockerhub: ${{ inputs.provision_dockerhub }}
     secrets:
