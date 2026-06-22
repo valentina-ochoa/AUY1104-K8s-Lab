@@ -1,0 +1,23 @@
+name: Autorizar llave SSH personal
+
+on:
+  workflow_dispatch:
+    inputs:
+      llave_publica:
+        description: "Contenido completo de tu llave .pub"
+        required: true
+        type: string
+
+jobs:
+  autorizar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EA2_SSH_PRIVATE_KEY }}
+
+      - name: Agregar llave pública al servidor
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new ubuntu@${{ vars.K3S_SERVER_PUBLIC_IP }} \
+            "echo '${{ inputs.llave_publica }}' >> ~/.ssh/authorized_keys"
