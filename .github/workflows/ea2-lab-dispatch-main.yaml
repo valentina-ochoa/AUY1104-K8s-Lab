@@ -11,7 +11,7 @@ on:
       instance_type:
         description: 'Tipo EC2'
         required: true
-        default: 't3.micro'
+        default: 't3.small'
 
       k8s_stack:
         description: 'k3s - minikube - none'
