@@ -7,14 +7,17 @@ on:
         description: 'Región AWS'
         required: true
         default: 'us-east-1'
+
       instance_type:
         description: 'Tipo EC2'
         required: true
-        default: 't3.small'
+        default: 't3.micro'
+
       k8s_stack:
         description: 'k3s - minikube - none'
         required: true
         default: 'k3s'
+
       provision_dockerhub:
         description: '¿Provisionar Docker Hub en el cluster?'
         required: true
@@ -24,11 +27,13 @@ on:
 jobs:
   delegar-receta-ea2:
     uses: asanchezo-duoc/AUY1104-SharedWorkflows/.github/workflows/ea2-provision-k8s-sandbox.yaml@main
+
     with:
       aws_region: ${{ inputs.aws_region }}
       instance_type: ${{ inputs.instance_type }}
       k8s_stack: ${{ inputs.k8s_stack }}
       provision_dockerhub: ${{ inputs.provision_dockerhub }}
+
     secrets:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
