@@ -12,6 +12,9 @@ jobs:
   run-command:
     runs-on: ubuntu-latest
     steps:
+      - name: Debug variable
+        run: echo "IP es -> [${{ vars.K3S_SERVER_PUBLIC_IP }}]"
+
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.9.0
         with:
