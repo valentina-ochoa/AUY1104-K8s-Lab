@@ -4,127 +4,181 @@ on:
   workflow_call:
     inputs:
       image-name:
-        description: Cómo se llamará la imagen en Docker Hub
+        description: Nombre de la imagen Docker
         required: true
         type: string
 
       image-tag:
-        description: Etiqueta que identifica esta versión
+        description: Tag de la imagen
         required: true
         type: string
 
       k3s-server-public-ip:
         description: IP pública del servidor K3S
+        required: true
+        type: string
+
+      environment:
+        description: Ambiente de despliegue
+        required: true
+        type: string
+
+      namespace:
+        description: Namespace de Kubernetes
         required: true
         type: string
 
     secrets:
       DOCKER_USERNAME:
         required: true
+
       DOCKER_PASSWORD:
         required: true
+
       EA2_SSH_PRIVATE_KEY:
         required: true
 
   workflow_dispatch:
     inputs:
       image-name:
-        description: Nombre corto de la imagen
+        description: Nombre de la imagen
         required: true
         type: string
 
       image-tag:
-        description: Etiqueta de esta versión
+        description: Tag de la imagen
         required: true
         type: string
 
       k3s-server-public-ip:
-        description: IP pública del servidor K3S
+        description: IP pública del servidor
         required: true
         type: string
 
+      environment:
+        description: Ambiente
+        required: true
+        type: string
+        default: production
+
+      namespace:
+        description: Namespace Kubernetes
+        required: true
+        type: string
+        default: default
+
 jobs:
+
   deps-and-test:
-    name: Dependencies and tests
+    name: Dependencies and Tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1 · Descargar el código del repositorio
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 2 · Instalar dependencias
+      - name: Instalar dependencias
         run: npm install
 
-      - name: 3 · Ejecutar tests
+      - name: Ejecutar pruebas
         run: npm test
 
   build-and-push:
-    name: Build and push Docker image
+    name: Build and Push Docker
     needs: deps-and-test
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1 · Descargar el código del repositorio
+
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 2 · Iniciar sesión en Docker Hub
+      - name: Login Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: 3 · Armar la imagen y publicarla
+      - name: Build Docker Image
         run: |
-          IMAGEN_COMPLETA="${{ secrets.DOCKER_USERNAME }}/${{ inputs.image-name }}"
+          IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ inputs.image-name }}
 
           docker build \
-            -t "${IMAGEN_COMPLETA}:${{ inputs.image-tag }}" \
-            -t "${IMAGEN_COMPLETA}:latest" \
-            .
+            -t $IMAGE:${{ inputs.image-tag }} \
+            -t $IMAGE:latest .
 
-          docker push --all-tags "${IMAGEN_COMPLETA}"
+      - name: Push Docker Image
+        run: |
+          IMAGE=${{ secrets.DOCKER_USERNAME }}/${{ inputs.image-name }}
+
+          docker push --all-tags $IMAGE
 
   deploy-to-k8s:
-    name: Deploy to AWS K3S
+    name: Deploy to K3S
     needs: build-and-push
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
+
+      - name: Configurar SSH
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.EA2_SSH_PRIVATE_KEY }}
 
-      - name: 1 · SSH al servidor K3S
-        run: ssh -o StrictHostKeyChecking=accept-new "ubuntu@${{ inputs.k3s-server-public-ip }}" 'echo ok'
+      - name: Verificar conexión
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} "echo Conexion correcta"
 
-      - name: Checkout (manifiestos K8s)
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Copiar manifiestos al servidor
+      - name: Copiar manifiestos
         run: |
-          set -euo pipefail
 
-          test -d k8s || {
-            echo "ERROR: Falta carpeta k8s/ en la raíz del repo"
-            exit 1
-          }
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo rm -rf /tmp/k8s-deploy"
 
-          ssh -o StrictHostKeyChecking=accept-new "ubuntu@${{ inputs.k3s-server-public-ip }}" \
-            'sudo rm -rf /tmp/k8s-deploy'
+          scp -o StrictHostKeyChecking=accept-new \
+          -r k8s \
+          ubuntu@${{ inputs.k3s-server-public-ip }}:/tmp/k8s-deploy
 
-          scp -o StrictHostKeyChecking=accept-new -r k8s \
-            "ubuntu@${{ inputs.k3s-server-public-ip }}:/tmp/k8s-deploy"
-
-      - name: Deploy to k3s
-        id: deploy
+      - name: Crear Namespace
         run: |
-          ssh -o StrictHostKeyChecking=accept-new "ubuntu@${{ inputs.k3s-server-public-ip }}" \
-            'sudo k3s kubectl apply -f /tmp/k8s-deploy/ && \
-             sudo k3s kubectl rollout status deployment/demo-api --timeout=60s'
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl create namespace ${{ inputs.namespace }} --dry-run=client -o yaml | sudo k3s kubectl apply -f -"
 
-      - name: Rollback automático
+      - name: Aplicar manifiestos
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl apply -n ${{ inputs.namespace }} -f /tmp/k8s-deploy"
+
+      - name: Actualizar imagen
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl set image deployment/demo-api demo-api=${{ secrets.DOCKER_USERNAME }}/${{ inputs.image-name }}:${{ inputs.image-tag }} -n ${{ inputs.namespace }}"
+
+      - name: Esperar Rollout
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl rollout status deployment/demo-api -n ${{ inputs.namespace }} --timeout=120s"
+
+      - name: Rollback Automático
         if: failure()
         run: |
-          ssh -o StrictHostKeyChecking=accept-new "ubuntu@${{ inputs.k3s-server-public-ip }}" \
-            'sudo k3s kubectl rollout undo deployment/demo-api && \
-             sudo k3s kubectl rollout status deployment/demo-api --timeout=60s'
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl rollout undo deployment/demo-api -n ${{ inputs.namespace }}"
+
+      - name: Esperar Rollback
+        if: failure()
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl rollout status deployment/demo-api -n ${{ inputs.namespace }} --timeout=120s"
