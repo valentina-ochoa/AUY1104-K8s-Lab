@@ -28,6 +28,12 @@ on:
         required: true
         type: string
 
+      env-vars:
+        description: Variables de entorno dinámicas (formato KEY=VALUE separadas por espacio)
+        required: false
+        type: string
+        default: ""
+
     secrets:
       DOCKER_USERNAME:
         required: true
@@ -66,6 +72,12 @@ on:
         required: true
         type: string
         default: default
+
+      env-vars:
+        description: Variables de entorno dinámicas (formato KEY=VALUE separadas por espacio)
+        required: false
+        type: string
+        default: ""
 
 jobs:
 
@@ -162,6 +174,13 @@ jobs:
           ssh -o StrictHostKeyChecking=accept-new \
           ubuntu@${{ inputs.k3s-server-public-ip }} \
           "sudo k3s kubectl set image deployment/demo-api demo-api=${{ secrets.DOCKER_USERNAME }}/${{ inputs.image-name }}:${{ inputs.image-tag }} -n ${{ inputs.namespace }}"
+
+      - name: Inyectar variables de entorno
+        if: inputs.env-vars != ''
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new \
+          ubuntu@${{ inputs.k3s-server-public-ip }} \
+          "sudo k3s kubectl set env deployment/demo-api ${{ inputs.env-vars }} -n ${{ inputs.namespace }}"
 
       - name: Esperar Rollout
         run: |
