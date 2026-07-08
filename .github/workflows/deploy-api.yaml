@@ -131,7 +131,7 @@ jobs:
       - name: Validación de Salud
         run: |
          RESULT=$(ssh -o StrictHostKeyChecking=accept-new ubuntu@${{ inputs.k3s-server-public-ip }} \
-          "sudo k3s kubectl run healthcheck-tmp-\$RANDOM --rm -i --restart=Never --image=curlimages/curl -n ${{ inputs.namespace }} -- curl -s -o /dev/null -w '%{http_code} %{time_total}' http://demo-api-green-preview:3000/health-falla || echo '000 0'")
+          "sudo k3s kubectl run healthcheck-tmp-\$RANDOM --rm -i --restart=Never --image=curlimages/curl -n ${{ inputs.namespace }} -- curl -s -o /dev/null -w '%{http_code} %{time_total}' http://demo-api-green-preview:3000/health || echo '000 0'")
           echo "Resultado: $RESULT"
           CODE=$(echo "$RESULT" | tail -1 | awk '{print $1}')
           TIME=$(echo "$RESULT" | tail -1 | awk '{print $2}')
