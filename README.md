@@ -1,6 +1,6 @@
 # AUY1104-K8s-Lab — Plantillas Reutilizables (GitHub Actions)
 
-Repositorio de **workflows reutilizables** (`workflow_call`) usados durante el semestre de AUY1104 (Ciclo de Vida del Software II), incluyendo la plantilla que resuelve la Evaluación Final Transversal.
+Repositorio de **workflows reutilizables** usados durante el semestre de AUY1104 (Ciclo de Vida del Software II), incluyendo la plantilla que resuelve la Evaluación Final Transversal.
 
 ## Proyecto que usa estas plantillas
 
